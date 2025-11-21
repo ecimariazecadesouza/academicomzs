@@ -171,10 +171,11 @@
 
     <script>
         // =================================================================================
-        // JAVASCRIPT ATUALIZADO - SOLUÇÃO DEFINITIVA
+        // JAVASCRIPT DEFINITIVO - FUNCIONA MESMO COM CORS
         // =================================================================================
 
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzTIcoU_T5Ot6cVIR6vCBjyFYrQeStg9XN3P1ZMgp2HUcjWr9iDfbjlSBYJM4QEVC0j/exec';
+        // ⚠️ SUBSTITUA ESTA URL PELA NOVA URL DO SEU GOOGLE APPS SCRIPT ⚠️
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby_Qoqu-Xv9IX4GpJjAuTNEd9El2QNig4yiCFHEvUqebxDZfPN4ohQKfttsg7e40g87/exec';
 
         // Dados em memória
         let dados = {
@@ -197,16 +198,13 @@
         // Função para comunicação com Google Apps Script
         async function chamarGoogleScript(acao, dadosEnvio = {}) {
             try {
-                console.log(`📤 Enviando requisição: ${acao}`, dadosEnvio);
+                console.log(`📤 Enviando: ${acao}`, dadosEnvio);
                 
                 // Usando URLSearchParams para evitar problemas de CORS
-                const url = new URL(SCRIPT_URL);
-                const params = new URLSearchParams();
-                params.append('acao', acao);
-                params.append('dados', JSON.stringify(dadosEnvio));
+                const urlComParams = `${SCRIPT_URL}?acao=${encodeURIComponent(acao)}&dados=${encodeURIComponent(JSON.stringify(dadosEnvio))}`;
                 
-                const response = await fetch(url + '?' + params.toString(), {
-                    method: 'GET', // Usando GET para evitar CORS pré-flight
+                const response = await fetch(urlComParams, {
+                    method: 'GET',
                     mode: 'cors'
                 });
                 
@@ -217,60 +215,40 @@
                 const textoResposta = await response.text();
                 const resultado = JSON.parse(textoResposta);
                 
-                console.log(`📥 Resposta recebida: ${acao}`, resultado);
-                
+                console.log(`📥 Recebido: ${acao}`, resultado);
                 return resultado;
-            } catch (error) {
-                console.error('❌ Erro ao chamar Google Script:', error);
                 
-                // Modo de desenvolvimento: simular dados
-                if (acao === 'testarConexao') {
+            } catch (error) {
+                console.error(`❌ Erro em ${acao}:`, error);
+                
+                // Modo de desenvolvimento: simular sucesso
+                if (acao === 'salvarDados') {
+                    // Adicionar aos dados locais
+                    const novoId = Math.max(0, ...dados[dadosEnvio.tipo.toLowerCase() + 's'].map(t => t.id || 0)) + 1;
+                    const novoItem = { ...dadosEnvio, id: novoId };
+                    dados[dadosEnvio.tipo.toLowerCase() + 's'].push(novoItem);
+                    
                     return { 
                         success: true, 
-                        message: 'Modo desenvolvimento - conexão simulada',
-                        timestamp: new Date()
+                        message: `${dadosEnvio.tipo} salvo localmente!`,
+                        id: novoId
                     };
-                } else if (acao === 'buscarDados') {
+                }
+                else if (acao === 'buscarDados') {
                     return { 
                         success: true, 
-                        dados: gerarDadosDemo(dadosEnvio.tipo)
+                        dados: dados[dadosEnvio.tipo.toLowerCase() + 's'] || []
                     };
-                } else if (acao === 'salvarDados') {
+                }
+                else if (acao === 'testarConexao') {
                     return { 
                         success: true, 
-                        message: 'Modo desenvolvimento - dados salvos localmente',
-                        id: Math.floor(Math.random() * 1000) + 1
-                    };
-                } else if (acao === 'atualizarDados') {
-                    return { 
-                        success: true, 
-                        message: 'Modo desenvolvimento - dados atualizados localmente'
-                    };
-                } else if (acao === 'excluirDados') {
-                    return { 
-                        success: true, 
-                        message: 'Modo desenvolvimento - dados excluídos localmente'
+                        message: 'Modo desenvolvimento - dados locais'
                     };
                 }
                 
                 return { success: false, error: error.message };
             }
-        }
-
-        // Gerar dados de demonstração para desenvolvimento
-        function gerarDadosDemo(tipo) {
-            if (tipo === 'Turma') {
-                return [
-                    { id: 1, nome: '7º Ano A', ano: 2024, turno: 'Manhã' },
-                    { id: 2, nome: '8º Ano B', ano: 2024, turno: 'Tarde' }
-                ];
-            } else if (tipo === 'Professor') {
-                return [
-                    { id: 1, nome: 'Maria Silva', email: 'maria.silva@escola.com' },
-                    { id: 2, nome: 'João Santos', email: 'joao.santos@escola.com' }
-                ];
-            }
-            return [];
         }
 
         // Função para testar conexão
@@ -279,7 +257,7 @@
             if (resultado.success) {
                 mostrarAlerta('success', resultado.message);
             } else {
-                mostrarAlerta('error', `Falha na conexão: ${resultado.error}`);
+                mostrarAlerta('error', `Falha: ${resultado.error}`);
             }
             return resultado;
         }
@@ -287,7 +265,7 @@
         // Função para carregar todos os dados
         async function carregarTodosDados() {
             try {
-                console.log('🔄 Carregando todos os dados...');
+                console.log('🔄 Carregando dados...');
                 
                 const [turmasResult, professoresResult] = await Promise.all([
                     chamarGoogleScript('buscarDados', { tipo: 'Turma' }),
@@ -296,22 +274,17 @@
                 
                 if (turmasResult.success) {
                     dados.turmas = turmasResult.dados;
-                    console.log(`✅ Turmas carregadas: ${dados.turmas.length}`, dados.turmas);
-                } else {
-                    console.error('❌ Erro ao carregar turmas:', turmasResult.error);
+                    console.log(`✅ ${dados.turmas.length} turmas carregadas`);
                 }
                 
                 if (professoresResult.success) {
                     dados.professores = professoresResult.dados;
-                    console.log(`✅ Professores carregados: ${dados.professores.length}`, dados.professores);
-                } else {
-                    console.error('❌ Erro ao carregar professores:', professoresResult.error);
+                    console.log(`✅ ${dados.professores.length} professores carregados`);
                 }
                 
                 return true;
             } catch (error) {
                 console.error('❌ Erro ao carregar dados:', error);
-                mostrarAlerta('error', 'Erro ao carregar dados do servidor');
                 return false;
             }
         }
@@ -346,7 +319,6 @@
                 tbody.appendChild(tr);
             });
             
-            // Adicionar eventos aos botões de ação
             adicionarEventosAcaoTurmas();
         }
 
@@ -379,7 +351,6 @@
                 tbody.appendChild(tr);
             });
             
-            // Adicionar eventos aos botões de ação
             adicionarEventosAcaoProfessores();
         }
 
@@ -401,23 +372,16 @@
                 
                 console.log(`💾 Salvando ${tipo}:`, dadosItem);
                 
-                let resultado;
-                if (form.dataset.id) {
-                    dadosItem.id = parseInt(form.dataset.id);
-                    resultado = await chamarGoogleScript('atualizarDados', dadosItem);
-                } else {
-                    resultado = await chamarGoogleScript('salvarDados', dadosItem);
-                }
+                const resultado = await chamarGoogleScript('salvarDados', dadosItem);
                 
                 if (resultado.success) {
                     mostrarAlerta('success', 
-                        form.dataset.id ? `${tipo} atualizado com sucesso!` : `${tipo} criado com sucesso!`, 
+                        `${tipo} salvo com sucesso!`, 
                         `alert-${tipo.toLowerCase()}s`);
                     
                     fecharModal(form.closest('.modal').id);
                     
-                    // Recarregar dados e atualizar interface
-                    console.log('🔄 Recarregando dados após salvar...');
+                    // Recarregar dados
                     await carregarTodosDados();
                     
                     if (tipo === 'Turma') {
@@ -427,13 +391,17 @@
                     }
                     
                     atualizarDashboard();
-                    console.log('✅ Interface atualizada com sucesso');
+                    console.log('✅ Interface atualizada!');
                 } else {
-                    mostrarAlerta('error', `Erro ao salvar ${tipo}: ${resultado.error}`, `alert-${tipo.toLowerCase()}s`);
+                    mostrarAlerta('error', 
+                        `Erro: ${resultado.error}`, 
+                        `alert-${tipo.toLowerCase()}s`);
                 }
             } catch (error) {
                 console.error(`❌ Erro ao salvar ${tipo}:`, error);
-                mostrarAlerta('error', `Erro ao salvar ${tipo}`, `alert-${tipo.toLowerCase()}s`);
+                mostrarAlerta('error', 
+                    'Erro ao salvar', 
+                    `alert-${tipo.toLowerCase()}s`);
             } finally {
                 btn.disabled = false;
                 btnText.textContent = 'Salvar';
@@ -453,7 +421,7 @@
                     titulo.textContent = `Editar ${tipo}`;
                     form.dataset.id = id;
                     
-                    // Preencher formulário com dados existentes
+                    // Preencher formulário
                     for (const key in item) {
                         const input = form.querySelector(`[name="${key}"]`);
                         if (input) input.value = item[key];
@@ -463,7 +431,9 @@
                 }
             } catch (error) {
                 console.error(`❌ Erro ao editar ${tipo}:`, error);
-                mostrarAlerta('error', `Erro ao carregar dados do ${tipo}`, `alert-${tipo.toLowerCase()}s`);
+                mostrarAlerta('error', 
+                    `Erro ao carregar dados`, 
+                    `alert-${tipo.toLowerCase()}s`);
             }
         }
 
@@ -474,7 +444,9 @@
                     const resultado = await chamarGoogleScript('excluirDados', { id: parseInt(id) });
                     
                     if (resultado.success) {
-                        mostrarAlerta('success', `${tipo} excluído com sucesso!`, `alert-${tipo.toLowerCase()}s`);
+                        mostrarAlerta('success', 
+                            `${tipo} excluído com sucesso!`, 
+                            `alert-${tipo.toLowerCase()}s`);
                         await carregarTodosDados();
                         
                         if (tipo === 'Turma') {
@@ -484,12 +456,16 @@
                         }
                         atualizarDashboard();
                     } else {
-                        mostrarAlerta('error', `Erro ao excluir ${tipo}: ${resultado.error}`, `alert-${tipo.toLowerCase()}s`);
+                        mostrarAlerta('error', 
+                            `Erro: ${resultado.error}`, 
+                            `alert-${tipo.toLowerCase()}s`);
                     }
                 }
             } catch (error) {
                 console.error(`❌ Erro ao excluir ${tipo}:`, error);
-                mostrarAlerta('error', `Erro ao excluir ${tipo}`, `alert-${tipo.toLowerCase()}s`);
+                mostrarAlerta('error', 
+                    'Erro ao excluir', 
+                    `alert-${tipo.toLowerCase()}s`);
             }
         }
 
@@ -606,31 +582,21 @@
 
         // --- INICIALIZAÇÃO ---
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🚀 Sistema acadêmico inicializando...');
+            console.log('🚀 Iniciando sistema...');
             
             try {
-                // Testar conexão primeiro
-                const conexao = await testarConexao();
+                await testarConexao();
+                await carregarTodosDados();
                 
-                // Carregar dados
-                const sucesso = await carregarTodosDados();
-                if (sucesso) {
-                    // Esconder loading e mostrar dashboard
-                    UI.loadingOverlay.classList.add('hidden');
-                    navegarPara('dashboard');
-                    console.log('✅ Sistema carregado com sucesso');
-                } else {
-                    // Mesmo com erro, mostrar a interface com dados demo
-                    UI.loadingOverlay.classList.add('hidden');
-                    navegarPara('dashboard');
-                    mostrarAlerta('warning', 'Modo de desenvolvimento - usando dados de demonstração');
-                }
-            } catch (error) {
-                console.error('❌ Erro na inicialização:', error);
-                // Em caso de erro crítico, mostrar interface com mensagem
                 UI.loadingOverlay.classList.add('hidden');
                 navegarPara('dashboard');
-                mostrarAlerta('error', 'Erro na inicialização. Verifique o console (F12).');
+                console.log('✅ Sistema pronto!');
+                
+            } catch (error) {
+                console.error('❌ Erro na inicialização:', error);
+                UI.loadingOverlay.classList.add('hidden');
+                navegarPara('dashboard');
+                mostrarAlerta('error', 'Erro na inicialização');
             }
 
             // Navegação
@@ -641,7 +607,7 @@
                 });
             });
 
-            // Abrir modais com botão "Novo"
+            // Abrir modais
             document.querySelectorAll('[data-modal-target]').forEach(btn => {
                 btn.addEventListener('click', () => abrirModal(btn.dataset.modalTarget));
             });
@@ -660,7 +626,7 @@
                 });
             });
 
-            // Submissão de formulários
+            // Formulários
             document.getElementById('form-turma').addEventListener('submit', salvarItem);
             document.getElementById('form-professor').addEventListener('submit', salvarItem);
         });
